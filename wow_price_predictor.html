@@ -1149,9 +1149,31 @@
 
         function hideStatus() {
             document.getElementById('statusBar').className = 'status-bar';
+            document.getElementById('statusBar').className = 'status-bar';
         }
 
-        function showItemInfo(item) {
+        function timeAgo(dateString) {
+            if (!dateString) return '';
+            const seconds = Math.floor((new Date() - new Date(dateString)) / 1000);
+            let interval = Math.floor(seconds / 31536000);
+            if (interval >= 1) return interval + (interval === 1 ? " year ago" : " years ago");
+            
+            interval = Math.floor(seconds / 2592000);
+            if (interval >= 1) return interval + (interval === 1 ? " month ago" : " months ago");
+            
+            interval = Math.floor(seconds / 86400);
+            if (interval >= 1) return interval + (interval === 1 ? " day ago" : " days ago");
+            
+            interval = Math.floor(seconds / 3600);
+            if (interval >= 1) return interval + (interval === 1 ? " hour ago" : " hours ago");
+            
+            interval = Math.floor(seconds / 60);
+            if (interval >= 1) return interval + (interval === 1 ? " minute ago" : " minutes ago");
+            
+            return "just now";
+        }
+
+        function showItemInfo(item, lastUpdateStr) {
             const el = document.getElementById('itemInfo');
             el.className = 'item-info visible';
             document.getElementById('itemImg').src = item.imgRef || '';
@@ -1159,7 +1181,12 @@
             nameEl.textContent = item.itemName;
             const quality = (item.quality || 'common').toLowerCase();
             nameEl.className = `item-name item-quality-${quality}`;
-            document.getElementById('itemSub').textContent = `${item.quality || ''} \u00b7 ${item.subClass || ''}`;
+            
+            let subText = `${item.quality || ''} \u00b7 ${item.subClass || ''}`;
+            if (lastUpdateStr) {
+                subText += ` <span style="color:var(--text-muted); opacity: 0.7; margin-left: 8px;">\u23F2\uFE0F Last updated: ${lastUpdateStr}</span>`;
+            }
+            document.getElementById('itemSub').innerHTML = subText;
             const changePercent = item.priceChangePercent || 0;
             const isPositive = changePercent >= 0;
             document.getElementById('statsRow').innerHTML = `
@@ -1339,7 +1366,9 @@
                 }
 
                 // Step 4: Display item info
-                showItemInfo(data.item);
+                const lastAuction = data.auctions[data.auctions.length - 1];
+                const lastUpdateStr = lastAuction ? timeAgo(lastAuction.dateTime) : '';
+                showItemInfo(data.item, lastUpdateStr);
 
                 // Step 5: Generate predictions
                 showStatus('Generating predictions...');
