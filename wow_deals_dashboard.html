@@ -295,7 +295,7 @@
                     <th>EU Change</th>
                     <th>Quantity</th>
                     <th>US 24h Change</th>
-                    <th>EU if US Pattern</th>
+                    <th>Supply Squeeze</th>
                     <th>Signal</th>
                 </tr>
             </thead>
@@ -340,12 +340,22 @@
     }
 
     // --- Signal Logic ---
-    // Combines EU momentum + US leading indicator into a simple signal
-    function calcSignal(euChange, usChange) {
+    // Combines EU momentum, US leading indicator, Supply squeeze, and Lifecycle
+    function calcSignal(euChange, usChange, supplySqueeze) {
         if (usChange === null) return { label: '...', cls: 'hold', score: 0 };
+        
+        const sqz = supplySqueeze || 0;
 
-        // Score: weighted combination of EU trend + US reset preview
-        const score = (euChange * 0.4) + (usChange * 0.6);
+        // Lifecycle Bonus based on day of week
+        // US reset is Tuesday, EU reset is Wednesday morning
+        const day = new Date().getDay(); // 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
+        let lifecycleBonus = 0;
+        if (day === 1 || day === 2) lifecycleBonus = 5; // Mon/Tue: Pre-reset dip -> great time to buy
+        else if (day === 3 || day === 4) lifecycleBonus = -5; // Wed/Thu: Reset peak -> bad time to buy
+        else lifecycleBonus = -2; // Weekend decay
+
+        // Score: EU trend (30%) + US reset preview (40%) + Supply Squeeze (30%) + Lifecycle
+        const score = (euChange * 0.3) + (usChange * 0.4) + (sqz * 0.3) + lifecycleBonus;
 
         if (score > 15) return { label: 'STRONG BUY', cls: 'strong-buy', score };
         if (score > 5) return { label: 'BUY', cls: 'buy', score };
@@ -386,8 +396,7 @@
 
         tbody.innerHTML = scanResults.map(item => {
             const qClass = qualityMap[item.color] || 'quality-common';
-            const signal = calcSignal(item.euChange, item.usChange);
-            const euPredFromUS = item.usChange !== null ? item.price * (1 + item.usChange / 100) : null;
+            const signal = calcSignal(item.euChange, item.usChange, item.supplySqueeze);
 
             // Build the predictor URL with query params
             const itemSlug = encodeURIComponent(item.name) + '-' + item.externalId;
@@ -413,7 +422,7 @@
                 <td>${changeHtml(item.euChange)}</td>
                 <td style="color: var(--text-secondary);">${item.quantity.toLocaleString()}</td>
                 <td class="us-cell">${usBadge}</td>
-                <td class="price-cell">${euPredFromUS !== null ? euPredFromUS.toFixed(2) + 'g' : '—'}</td>
+                <td>${item.supplySqueeze !== null ? changeHtml(item.supplySqueeze) : '<span class="change-neutral">—</span>'}</td>
                 <td class="signal-cell"><span class="signal ${signal.cls}">${signal.label}</span></td>
             </tr>`;
         }).join('');
@@ -439,8 +448,8 @@
             let va, vb;
             switch (field) {
                 case 'signal':
-                    va = calcSignal(a.euChange, a.usChange).score;
-                    vb = calcSignal(b.euChange, b.usChange).score;
+                    va = calcSignal(a.euChange, a.usChange, a.supplySqueeze).score;
+                    vb = calcSignal(b.euChange, b.usChange, b.supplySqueeze).score;
                     break;
                 case 'usChange': va = a.usChange ?? -9999; vb = b.usChange ?? -9999; break;
                 case 'euChange': va = a.euChange; vb = b.euChange; break;
@@ -494,7 +503,8 @@
                 imgRef: item.imgRef || '',
                 href: item.href || '',
                 externalId: item.href ? item.href.split('-').pop() : '',
-                usChange: null // Will be filled async
+                usChange: null, // Will be filled async
+                supplySqueeze: null // Will be filled async
             }));
 
             // Show table immediately with "loading" US badges
@@ -510,10 +520,23 @@
                 const batch = scanResults.slice(i, i + BATCH_SIZE);
                 const promises = batch.map(async (item) => {
                     try {
-                        const usData = await fetchPriceData(item.id, usPeriod, 'us', 'area-52');
-                        item.usChange = calcUSChange(usData);
+                        const [usData, euWeeklyData] = await Promise.all([
+                            fetchPriceData(item.id, usPeriod, 'us', 'area-52').catch(()=>null),
+                            fetchPriceData(item.id, 'weekly', region, realm).catch(()=>null)
+                        ]);
+                        item.usChange = usData ? calcUSChange(usData) : null;
+                        
+                        // Supply Squeeze metric
+                        if (euWeeklyData && euWeeklyData.auctions && euWeeklyData.auctions.length > 0) {
+                            const totalQty = euWeeklyData.auctions.reduce((sum, a) => sum + a.quantity, 0);
+                            const avgQty = totalQty / euWeeklyData.auctions.length;
+                            item.supplySqueeze = avgQty > 0 ? ((avgQty - item.quantity) / avgQty) * 100 : 0;
+                        } else {
+                            item.supplySqueeze = null;
+                        }
                     } catch {
                         item.usChange = null;
+                        item.supplySqueeze = null;
                     }
                     completed++;
                     setProgress(Math.round((completed / scanResults.length) * 100));
@@ -565,7 +588,7 @@
                     scanResults.sort((a, b) => {
                         let va, vb;
                         switch (savedSort) {
-                            case 'signal': va = calcSignal(a.euChange, a.usChange).score; vb = calcSignal(b.euChange, b.usChange).score; break;
+                            case 'signal': va = calcSignal(a.euChange, a.usChange, a.supplySqueeze).score; vb = calcSignal(b.euChange, b.usChange, b.supplySqueeze).score; break;
                             case 'usChange': va = a.usChange ?? -9999; vb = b.usChange ?? -9999; break;
                             case 'euChange': va = a.euChange; vb = b.euChange; break;
                             case 'price': va = a.price; vb = b.price; break;

@@ -1184,7 +1184,7 @@
             `;
         }
 
-        function showPredictionStats(currentPrice, linearPreds, maPreds, forecastHours, usData, euChangePercent = null) {
+        function showPredictionStats(currentPrice, linearPreds, maPreds, forecastHours, usData, euChangePercent = null, supplySqueeze = null) {
             const el = document.getElementById('predStats');
             el.className = 'prediction-stats visible';
 
@@ -1204,9 +1204,18 @@
                 return change > 0 ? '\u2191' : '\u2193';
             }
 
-            function calcSignal(euChange, usChange) {
+            function calcSignal(euChange, usChange, sqz) {
                 if (usChange === null || euChange === null) return null;
-                const score = (euChange * 0.4) + (usChange * 0.6);
+                const supplySq = sqz || 0;
+
+                // Lifecycle Bonus
+                const day = new Date().getDay();
+                let lifecycleBonus = 0;
+                if (day === 1 || day === 2) lifecycleBonus = 5; 
+                else if (day === 3 || day === 4) lifecycleBonus = -5;
+                else lifecycleBonus = -2;
+
+                const score = (euChange * 0.3) + (usChange * 0.4) + (supplySq * 0.3) + lifecycleBonus;
                 if (score > 15) return { label: 'STRONG BUY', cls: 'strong-buy', score };
                 if (score > 5) return { label: 'BUY', cls: 'buy', score };
                 if (score > -5) return { label: 'HOLD', cls: 'hold', score };
@@ -1239,7 +1248,7 @@
                 `;
 
                 if (euChangePercent !== null) {
-                    const signal = calcSignal(euChangePercent, usChange24h);
+                    const signal = calcSignal(euChangePercent, usChange24h, supplySqueeze);
                     if (signal) {
                         signalCardHtml = `
                             <div class="pred-card" style="border-color: rgba(59, 130, 246, 0.3); background: linear-gradient(135deg, rgba(59, 130, 246, 0.04), var(--bg-input));">
@@ -1351,7 +1360,22 @@
 
                 // Step 7: Show prediction stats
                 const currentPrice = data.item.marketValue || data.auctions[data.auctions.length - 1]?.price || 0;
-                showPredictionStats(currentPrice, linearPreds, maPreds, forecastHours, showUS ? usData : null, data.item.priceChangePercent);
+                
+                // Calculate supply squeeze over the displayed period
+                const totalQty = data.auctions.reduce((sum, a) => sum + a.quantity, 0);
+                const avgQty = totalQty / data.auctions.length;
+                const currentQty = data.auctions[data.auctions.length - 1].quantity;
+                const supplySqueeze = avgQty > 0 ? ((avgQty - currentQty) / avgQty) * 100 : 0;
+
+                showPredictionStats(
+                    currentPrice, 
+                    linearPreds, 
+                    maPreds, 
+                    forecastHours, 
+                    showUS ? usData : null, 
+                    data.item.priceChangePercent,
+                    supplySqueeze
+                );
 
                 // Step 8: Save to history
                 saveToHistory(url, data.item);
