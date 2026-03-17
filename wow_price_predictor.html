@@ -1366,7 +1366,8 @@
                 }
 
                 // Step 4: Display item info
-                const lastAuction = data.auctions[data.auctions.length - 1];
+                const sortedAuctions = [...data.auctions].sort((a, b) => new Date(a.dateTime) - new Date(b.dateTime));
+                const lastAuction = sortedAuctions[sortedAuctions.length - 1];
                 const lastUpdateStr = lastAuction ? timeAgo(lastAuction.dateTime) : '';
                 showItemInfo(data.item, lastUpdateStr);
 
@@ -1388,12 +1389,12 @@
                 document.getElementById('chartSubtitle').textContent = subtitleParts.join(' \u00b7 ');
 
                 // Step 7: Show prediction stats
-                const currentPrice = data.item.marketValue || data.auctions[data.auctions.length - 1]?.price || 0;
+                const currentPrice = data.item.marketValue || sortedAuctions[sortedAuctions.length - 1]?.price || 0;
                 
                 // Calculate supply squeeze over the displayed period
                 const totalQty = data.auctions.reduce((sum, a) => sum + a.quantity, 0);
                 const avgQty = totalQty / data.auctions.length;
-                const currentQty = data.auctions[data.auctions.length - 1].quantity;
+                const currentQty = sortedAuctions[sortedAuctions.length - 1].quantity;
                 const supplySqueeze = avgQty > 0 ? ((avgQty - currentQty) / avgQty) * 100 : 0;
 
                 showPredictionStats(
