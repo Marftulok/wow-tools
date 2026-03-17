@@ -263,6 +263,13 @@
             </select>
         </div>
         <div class="control-group">
+            <label>Expansion</label>
+            <select id="expansionSelect">
+                <option value="midnight" selected>Midnight Only</option>
+                <option value="all">All</option>
+            </select>
+        </div>
+        <div class="control-group">
             <label>US Period</label>
             <select id="usPeriodSelect">
                 <option value="daily" selected>Daily</option>
@@ -459,6 +466,7 @@
         const region = document.getElementById('regionSelect').value;
         const realm = document.getElementById('realmInput').value.trim();
         const type = document.getElementById('typeSelect').value;
+        const expansionFilter = document.getElementById('expansionSelect').value;
         const usPeriod = document.getElementById('usPeriodSelect').value;
         const btn = document.getElementById('scanBtn');
 
@@ -481,7 +489,19 @@
                 throw new Error(`No ${type} deals found`);
             }
 
-            const items = dealCategory.items;
+            let items = dealCategory.items;
+
+            // Apply Expansion filter
+            if (expansionFilter === 'midnight') {
+                items = items.filter(item => item.expansion && item.expansion.toLowerCase() === 'midnight');
+            }
+
+            if (items.length === 0) {
+                showStatus(`No ${type} deals found matching the selected expansion`, true);
+                btn.disabled = false;
+                btn.textContent = 'Scan Deals';
+                return;
+            }
 
             // Initialize results
             scanResults = items.map(item => ({
@@ -528,10 +548,11 @@
             hideStatus();
             sortBy('signal'); // Final sort
 
-            // Cache results so navigating back restores the dashboard
+            // Cache results and settings so navigating back restores the dashboard
             sessionStorage.setItem('wowDeals_results', JSON.stringify(scanResults));
             sessionStorage.setItem('wowDeals_sort', currentSort);
             sessionStorage.setItem('wowDeals_dir', String(sortDirection));
+            sessionStorage.setItem('wowDeals_expansion', expansionFilter);
         } catch (err) {
             showStatus(err.message, true);
             setProgress(0);
@@ -578,6 +599,10 @@
                 }
             } catch {}
         }
+        
+        // Restore controls if saved
+        const savedExpansion = sessionStorage.getItem('wowDeals_expansion');
+        if (savedExpansion) document.getElementById('expansionSelect').value = savedExpansion;
     })();
 </script>
 </body>
