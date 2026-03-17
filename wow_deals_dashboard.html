@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WoW Rising Deals Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg-primary: #0a0e17;
+            --bg-secondary: #111827;
+            --bg-card: #1a2236;
+            --bg-input: #0d1525;
+            --border-color: #1e2d4a;
+            --border-glow: #2563eb33;
+            --text-primary: #e2e8f0;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --accent-blue: #3b82f6;
+            --accent-green: #22c55e;
+            --accent-orange: #f59e0b;
+            --accent-red: #ef4444;
+            --accent-purple: #a855f7;
+            --gold: #fbbf24;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background:
+                radial-gradient(ellipse at 20% 20%, rgba(59, 130, 246, 0.06) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 80%, rgba(168, 85, 247, 0.04) 0%, transparent 50%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .app { max-width: 1400px; margin: 0 auto; padding: 24px; position: relative; z-index: 1; }
+
+        /* Header */
+        .header { text-align: center; margin-bottom: 28px; }
+        .header h1 {
+            font-size: 26px; font-weight: 700;
+            background: linear-gradient(135deg, var(--accent-green), var(--accent-blue));
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+            margin-bottom: 4px;
+        }
+        .header p { font-size: 13px; color: var(--text-muted); }
+
+        .nav-link {
+            display: inline-flex; align-items: center; gap: 6px;
+            margin-bottom: 16px; padding: 6px 14px;
+            background: var(--bg-card); border: 1px solid var(--border-color);
+            border-radius: 8px; color: var(--text-secondary);
+            text-decoration: none; font-size: 13px;
+            transition: border-color 0.2s, color 0.2s;
+        }
+        .nav-link:hover { border-color: var(--accent-blue); color: var(--text-primary); }
+
+        /* Controls */
+        .controls {
+            display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;
+            background: var(--bg-card); border: 1px solid var(--border-color);
+            border-radius: 14px; padding: 18px 20px; margin-bottom: 20px;
+        }
+        .control-group { display: flex; flex-direction: column; gap: 6px; }
+        .control-group label {
+            font-size: 11px; font-weight: 600; color: var(--text-muted);
+            text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        .control-group select, .control-group input {
+            padding: 10px 14px; background: var(--bg-input); border: 1px solid var(--border-color);
+            border-radius: 8px; color: var(--text-primary); font-family: 'Inter', sans-serif;
+            font-size: 13px; outline: none;
+        }
+        .control-group select {
+            cursor: pointer; appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2394a3b8' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat; background-position: right 10px center; padding-right: 28px;
+        }
+        .control-group select option { background: var(--bg-secondary); }
+        .btn-scan {
+            padding: 10px 24px; background: linear-gradient(135deg, var(--accent-green), #10b981);
+            border: none; border-radius: 8px; color: white; font-family: 'Inter', sans-serif;
+            font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;
+            transition: transform 0.15s, box-shadow 0.15s;
+        }
+        .btn-scan:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(34, 197, 94, 0.3); }
+        .btn-scan:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        .spacer { flex: 1; }
+
+        /* Status */
+        .status { text-align: center; padding: 10px; font-size: 13px; color: var(--text-muted); display: none; }
+        .status.visible { display: block; }
+        .status.error { color: var(--accent-red); }
+        .spinner {
+            display: inline-block; width: 14px; height: 14px;
+            border: 2px solid var(--border-color); border-top-color: var(--accent-blue);
+            border-radius: 50%; animation: spin 0.8s linear infinite;
+            vertical-align: middle; margin-right: 6px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Progress bar */
+        .progress-bar {
+            height: 3px; background: var(--border-color); border-radius: 2px;
+            margin-bottom: 16px; overflow: hidden; display: none;
+        }
+        .progress-bar.visible { display: block; }
+        .progress-fill {
+            height: 100%; background: linear-gradient(90deg, var(--accent-blue), var(--accent-green));
+            border-radius: 2px; transition: width 0.3s;
+        }
+
+        /* Sort bar */
+        .sort-bar {
+            display: flex; gap: 8px; align-items: center; margin-bottom: 14px;
+            font-size: 12px; color: var(--text-muted); flex-wrap: wrap;
+        }
+        .sort-bar span { font-weight: 600; }
+        .sort-btn {
+            background: var(--bg-input); border: 1px solid var(--border-color);
+            border-radius: 6px; padding: 4px 10px; color: var(--text-secondary);
+            font-family: 'Inter', sans-serif; font-size: 11px; cursor: pointer;
+            transition: all 0.15s;
+        }
+        .sort-btn:hover { border-color: var(--accent-blue); color: var(--text-primary); }
+        .sort-btn.active {
+            background: rgba(59, 130, 246, 0.1); border-color: var(--accent-blue);
+            color: var(--accent-blue);
+        }
+        .item-count {
+            margin-left: auto; font-size: 12px; color: var(--text-muted);
+        }
+
+        /* Table */
+        .table-wrapper {
+            background: var(--bg-card); border: 1px solid var(--border-color);
+            border-radius: 14px; overflow: hidden;
+        }
+        table { width: 100%; border-collapse: collapse; }
+        thead th {
+            text-align: left; padding: 12px 14px;
+            font-size: 11px; font-weight: 600; color: var(--text-muted);
+            text-transform: uppercase; letter-spacing: 0.5px;
+            border-bottom: 1px solid var(--border-color);
+            background: var(--bg-input); cursor: pointer;
+            user-select: none; white-space: nowrap;
+            transition: color 0.15s;
+        }
+        thead th:hover { color: var(--text-primary); }
+        thead th .sort-arrow { margin-left: 4px; font-size: 10px; }
+        tbody tr {
+            border-bottom: 1px solid var(--border-color);
+            transition: background 0.15s;
+            cursor: pointer;
+        }
+        tbody tr:last-child { border-bottom: none; }
+        tbody tr:hover { background: rgba(59, 130, 246, 0.08); }
+        tbody td { padding: 10px 14px; font-size: 13px; vertical-align: middle; }
+
+        .item-cell {
+            display: flex; align-items: center; gap: 10px;
+        }
+        .item-icon {
+            width: 32px; height: 32px; border-radius: 6px;
+            border: 1px solid var(--border-color); object-fit: cover; flex-shrink: 0;
+        }
+        .item-cell-name {
+            font-weight: 600; font-size: 13px;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px;
+        }
+        .quality-common { color: #ffffff; }
+        .quality-uncommon { color: #1eff00; }
+        .quality-rare { color: #0070dd; }
+        .quality-epic { color: #a335ee; }
+        .quality-legendary { color: #ff8000; }
+
+        .price-cell { color: var(--gold); font-weight: 600; white-space: nowrap; }
+        .change-cell { font-weight: 600; white-space: nowrap; }
+        .change-positive { color: var(--accent-green); }
+        .change-negative { color: var(--accent-red); }
+        .change-neutral { color: var(--text-muted); }
+
+        .us-cell { white-space: nowrap; }
+        .us-badge {
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 3px 8px; border-radius: 5px; font-size: 11px; font-weight: 600;
+        }
+        .us-badge.up { background: rgba(34, 197, 94, 0.12); color: var(--accent-green); }
+        .us-badge.down { background: rgba(239, 68, 68, 0.12); color: var(--accent-red); }
+        .us-badge.neutral { background: rgba(148, 163, 184, 0.1); color: var(--text-muted); }
+        .us-badge.loading { background: rgba(59, 130, 246, 0.08); color: var(--text-muted); font-weight: 400; }
+
+        .signal-cell { text-align: center; }
+        .signal {
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 700;
+        }
+        .signal.strong-buy { background: rgba(34, 197, 94, 0.15); color: #4ade80; }
+        .signal.buy { background: rgba(34, 197, 94, 0.08); color: var(--accent-green); }
+        .signal.hold { background: rgba(148, 163, 184, 0.08); color: var(--text-muted); }
+        .signal.sell { background: rgba(239, 68, 68, 0.08); color: var(--accent-red); }
+        .signal.strong-sell { background: rgba(239, 68, 68, 0.15); color: #f87171; }
+
+        .link-btn {
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 4px 8px; border-radius: 6px; font-size: 11px;
+            color: var(--accent-blue); background: rgba(59, 130, 246, 0.08);
+            text-decoration: none; transition: background 0.15s;
+        }
+        .link-btn:hover { background: rgba(59, 130, 246, 0.15); }
+
+        .footer {
+            text-align: center; padding: 20px; font-size: 11px; color: var(--text-muted);
+        }
+        .footer a { color: var(--accent-blue); }
+
+        @media (max-width: 900px) {
+            .app { padding: 12px; }
+            .controls { flex-direction: column; }
+            .table-wrapper { overflow-x: auto; }
+            table { min-width: 800px; }
+        }
+    </style>
+</head>
+<body>
+<div class="app">
+    <a class="nav-link" href="wow_price_predictor.html">&#128270; Open Price Predictor</a>
+
+    <div class="header">
+        <h1>&#128200; Rising Deals Scanner</h1>
+        <p>Scans EU rising items and checks US market for reset impact signals</p>
+    </div>
+
+    <div class="controls">
+        <div class="control-group">
+            <label>Region</label>
+            <select id="regionSelect">
+                <option value="eu" selected>EU</option>
+                <option value="us">US</option>
+            </select>
+        </div>
+        <div class="control-group">
+            <label>Realm</label>
+            <input type="text" id="realmInput" value="blackhand" style="width: 140px;" />
+        </div>
+        <div class="control-group">
+            <label>Deal Type</label>
+            <select id="typeSelect">
+                <option value="rising" selected>Rising</option>
+                <option value="falling">Falling</option>
+            </select>
+        </div>
+        <div class="control-group">
+            <label>US Period</label>
+            <select id="usPeriodSelect">
+                <option value="daily" selected>Daily</option>
+                <option value="weekly">Weekly</option>
+            </select>
+        </div>
+        <div class="spacer"></div>
+        <button class="btn-scan" id="scanBtn" onclick="runScan()">Scan Deals</button>
+    </div>
+
+    <div class="status" id="statusBar"></div>
+    <div class="progress-bar" id="progressBar"><div class="progress-fill" id="progressFill"></div></div>
+
+    <div class="sort-bar" id="sortBar" style="display: none;">
+        <span>Sort:</span>
+        <button class="sort-btn active" data-sort="signal" onclick="sortBy('signal')">Signal</button>
+        <button class="sort-btn" data-sort="usChange" onclick="sortBy('usChange')">US Change</button>
+        <button class="sort-btn" data-sort="euChange" onclick="sortBy('euChange')">EU Change</button>
+        <button class="sort-btn" data-sort="price" onclick="sortBy('price')">Price</button>
+        <button class="sort-btn" data-sort="quantity" onclick="sortBy('quantity')">Quantity</button>
+        <span class="item-count" id="itemCount"></span>
+    </div>
+
+    <div class="table-wrapper" id="tableWrapper" style="display: none;">
+        <table>
+            <thead>
+                <tr>
+                    <th>Item</th>
+                    <th>EU Price</th>
+                    <th>EU Change</th>
+                    <th>Quantity</th>
+                    <th>US 24h Change</th>
+                    <th>EU if US Pattern</th>
+                    <th>Signal</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+        </table>
+    </div>
+
+    <div class="footer">
+        Data from <a href="https://wowpricehub.com" target="_blank">WowPriceHub</a>.
+        US data shifted +24h as a leading indicator &mdash; not financial advice.
+    </div>
+</div>
+
+<script>
+    let scanResults = [];
+    let currentSort = 'signal';
+    let sortDirection = -1; // -1 = descending
+
+    // --- API ---
+    async function fetchDeals(region, realm, type) {
+        const r = await fetch(`https://wowpricehub.com/v1/deals?region=${region}&realm=${realm}&type=${type}`);
+        if (!r.ok) throw new Error(`Deals API returned ${r.status}`);
+        return r.json();
+    }
+
+    async function fetchPriceData(uuid, period, region, realm) {
+        const r = await fetch(`https://wowpricehub.com/v1/items/${uuid}/period/${period}?region=${region}&realm=${realm}`);
+        if (!r.ok) throw new Error(`Price API returned ${r.status}`);
+        return r.json();
+    }
+
+    // --- US Change Calculation ---
+    function calcUSChange(usData) {
+        if (!usData || !usData.auctions || usData.auctions.length < 2) return null;
+        const sorted = [...usData.auctions].sort((a, b) => new Date(a.dateTime) - new Date(b.dateTime));
+        const now = new Date(sorted[sorted.length - 1].dateTime).getTime();
+        const dayAgo = now - 24 * 3600 * 1000;
+        const baseline = sorted.find(a => new Date(a.dateTime).getTime() >= dayAgo);
+        const latest = sorted[sorted.length - 1].price;
+        const base = baseline ? baseline.price : sorted[0].price;
+        return ((latest - base) / base) * 100;
+    }
+
+    // --- Signal Logic ---
+    // Combines EU momentum + US leading indicator into a simple signal
+    function calcSignal(euChange, usChange) {
+        if (usChange === null) return { label: '...', cls: 'hold', score: 0 };
+
+        // Score: weighted combination of EU trend + US reset preview
+        const score = (euChange * 0.4) + (usChange * 0.6);
+
+        if (score > 15) return { label: 'STRONG BUY', cls: 'strong-buy', score };
+        if (score > 5) return { label: 'BUY', cls: 'buy', score };
+        if (score > -5) return { label: 'HOLD', cls: 'hold', score };
+        if (score > -15) return { label: 'SELL', cls: 'sell', score };
+        return { label: 'STRONG SELL', cls: 'strong-sell', score };
+    }
+
+    // --- UI ---
+    function showStatus(msg, isError) {
+        const el = document.getElementById('statusBar');
+        el.className = 'status visible' + (isError ? ' error' : '');
+        el.innerHTML = isError ? msg : `<span class="spinner"></span>${msg}`;
+    }
+    function hideStatus() { document.getElementById('statusBar').className = 'status'; }
+
+    function setProgress(pct) {
+        const bar = document.getElementById('progressBar');
+        const fill = document.getElementById('progressFill');
+        if (pct <= 0) { bar.className = 'progress-bar'; return; }
+        bar.className = 'progress-bar visible';
+        fill.style.width = pct + '%';
+    }
+
+    const qualityMap = { epic: 'quality-epic', rare: 'quality-rare', uncommon: 'quality-uncommon', legendary: 'quality-legendary', common: 'quality-common' };
+
+    function changeHtml(val, suffix = '%') {
+        if (val === null || val === undefined) return '<span class="change-neutral">—</span>';
+        const cls = Math.abs(val) < 0.5 ? 'change-neutral' : val > 0 ? 'change-positive' : 'change-negative';
+        const arrow = Math.abs(val) < 0.5 ? '' : val > 0 ? '&#9650; ' : '&#9660; ';
+        return `<span class="${cls}">${arrow}${val >= 0 ? '+' : ''}${val.toFixed(2)}${suffix}</span>`;
+    }
+
+    function renderTable() {
+        const tbody = document.getElementById('tableBody');
+        const region = document.getElementById('regionSelect').value;
+        const realm = document.getElementById('realmInput').value;
+
+        tbody.innerHTML = scanResults.map(item => {
+            const qClass = qualityMap[item.color] || 'quality-common';
+            const signal = calcSignal(item.euChange, item.usChange);
+            const euPredFromUS = item.usChange !== null ? item.price * (1 + item.usChange / 100) : null;
+
+            // Build the predictor URL with query params
+            const itemSlug = encodeURIComponent(item.name) + '-' + item.externalId;
+            const wphUrl = `https://wowpricehub.com/${region}/${realm}/item/${itemSlug}`;
+            const predictorUrl = `wow_price_predictor.html?url=${encodeURIComponent(wphUrl)}`;
+
+            // US badge
+            let usBadge;
+            if (item.usChange === null) {
+                usBadge = '<span class="us-badge loading">loading...</span>';
+            } else {
+                const usCls = Math.abs(item.usChange) < 0.5 ? 'neutral' : item.usChange > 0 ? 'up' : 'down';
+                const usArrow = Math.abs(item.usChange) < 0.5 ? '' : item.usChange > 0 ? '&#9650; ' : '&#9660; ';
+                usBadge = `<span class="us-badge ${usCls}">${usArrow}${item.usChange >= 0 ? '+' : ''}${item.usChange.toFixed(2)}%</span>`;
+            }
+
+            return `<tr onclick="window.location.href='${predictorUrl}'">
+                <td><div class="item-cell">
+                    <img class="item-icon" src="${item.imgRef}" alt="" loading="lazy" />
+                    <span class="item-cell-name ${qClass}" title="${item.name}">${item.name}</span>
+                </div></td>
+                <td class="price-cell">${item.price.toFixed(2)}g</td>
+                <td>${changeHtml(item.euChange)}</td>
+                <td style="color: var(--text-secondary);">${item.quantity.toLocaleString()}</td>
+                <td class="us-cell">${usBadge}</td>
+                <td class="price-cell">${euPredFromUS !== null ? euPredFromUS.toFixed(2) + 'g' : '—'}</td>
+                <td class="signal-cell"><span class="signal ${signal.cls}">${signal.label}</span></td>
+            </tr>`;
+        }).join('');
+
+        document.getElementById('itemCount').textContent = `${scanResults.length} items`;
+    }
+
+    function sortBy(field) {
+        // Toggle direction if same field
+        if (currentSort === field) {
+            sortDirection *= -1;
+        } else {
+            currentSort = field;
+            sortDirection = -1; // Default descending
+        }
+
+        // Update active button
+        document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active'));
+        document.querySelector(`.sort-btn[data-sort="${field}"]`)?.classList.add('active');
+
+        const d = sortDirection;
+        scanResults.sort((a, b) => {
+            let va, vb;
+            switch (field) {
+                case 'signal':
+                    va = calcSignal(a.euChange, a.usChange).score;
+                    vb = calcSignal(b.euChange, b.usChange).score;
+                    break;
+                case 'usChange': va = a.usChange ?? -9999; vb = b.usChange ?? -9999; break;
+                case 'euChange': va = a.euChange; vb = b.euChange; break;
+                case 'price': va = a.price; vb = b.price; break;
+                case 'quantity': va = a.quantity; vb = b.quantity; break;
+                default: va = 0; vb = 0;
+            }
+            return (va - vb) * d;
+        });
+
+        renderTable();
+    }
+
+    // --- Main Scan ---
+    async function runScan() {
+        const region = document.getElementById('regionSelect').value;
+        const realm = document.getElementById('realmInput').value.trim();
+        const type = document.getElementById('typeSelect').value;
+        const usPeriod = document.getElementById('usPeriodSelect').value;
+        const btn = document.getElementById('scanBtn');
+
+        if (!realm) { showStatus('Please enter a realm name', true); return; }
+
+        btn.disabled = true;
+        btn.textContent = 'Scanning...';
+        scanResults = [];
+        document.getElementById('tableWrapper').style.display = 'none';
+        document.getElementById('sortBar').style.display = 'none';
+
+        try {
+            // Step 1: Fetch deal list
+            showStatus(`Fetching ${type} deals for ${region}/${realm}...`);
+            const dealsData = await fetchDeals(region, realm, type);
+
+            // The API returns { rising: { items: [...] } } or { falling: { items: [...] } }
+            const dealCategory = dealsData[type];
+            if (!dealCategory || !dealCategory.items || dealCategory.items.length === 0) {
+                throw new Error(`No ${type} deals found`);
+            }
+
+            const items = dealCategory.items;
+
+            // Initialize results
+            scanResults = items.map(item => ({
+                id: item.itemId,
+                name: item.itemName,
+                price: item.marketValue,
+                euChange: item.priceChangePercent,
+                quantity: item.quantity,
+                color: (item.color || 'common').toLowerCase(),
+                imgRef: item.imgRef || '',
+                href: item.href || '',
+                externalId: item.href ? item.href.split('-').pop() : '',
+                usChange: null // Will be filled async
+            }));
+
+            // Show table immediately with "loading" US badges
+            document.getElementById('tableWrapper').style.display = 'block';
+            document.getElementById('sortBar').style.display = 'flex';
+            renderTable();
+
+            // Step 2: Fetch US data for each item (batched to avoid rate limiting)
+            const BATCH_SIZE = 5;
+            let completed = 0;
+
+            for (let i = 0; i < scanResults.length; i += BATCH_SIZE) {
+                const batch = scanResults.slice(i, i + BATCH_SIZE);
+                const promises = batch.map(async (item) => {
+                    try {
+                        const usData = await fetchPriceData(item.id, usPeriod, 'us', 'area-52');
+                        item.usChange = calcUSChange(usData);
+                    } catch {
+                        item.usChange = null;
+                    }
+                    completed++;
+                    setProgress(Math.round((completed / scanResults.length) * 100));
+                    showStatus(`Fetching US data... ${completed}/${scanResults.length}`);
+                });
+                await Promise.all(promises);
+                // Re-render after each batch to show progress
+                sortBy(currentSort);
+            }
+
+            setProgress(0);
+            hideStatus();
+            sortBy('signal'); // Final sort
+
+            // Cache results so navigating back restores the dashboard
+            sessionStorage.setItem('wowDeals_results', JSON.stringify(scanResults));
+            sessionStorage.setItem('wowDeals_sort', currentSort);
+            sessionStorage.setItem('wowDeals_dir', String(sortDirection));
+        } catch (err) {
+            showStatus(err.message, true);
+            setProgress(0);
+            console.error(err);
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Scan Deals';
+        }
+    }
+
+    // --- Restore cached results on page load ---
+    (function restoreCache() {
+        const cached = sessionStorage.getItem('wowDeals_results');
+        if (cached) {
+            try {
+                scanResults = JSON.parse(cached);
+                if (scanResults.length > 0) {
+                    document.getElementById('tableWrapper').style.display = 'block';
+                    document.getElementById('sortBar').style.display = 'flex';
+                    const savedSort = sessionStorage.getItem('wowDeals_sort') || 'signal';
+                    const savedDir = parseInt(sessionStorage.getItem('wowDeals_dir')) || -1;
+                    // Set currentSort to something different so sortBy doesn't toggle direction
+                    currentSort = '__restore__';
+                    sortDirection = savedDir;
+                    // Now calling sortBy will set currentSort properly without flipping
+                    currentSort = savedSort;
+                    // Manually sort without toggling: replicate sortBy logic
+                    document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active'));
+                    document.querySelector(`.sort-btn[data-sort="${savedSort}"]`)?.classList.add('active');
+                    const d = savedDir;
+                    scanResults.sort((a, b) => {
+                        let va, vb;
+                        switch (savedSort) {
+                            case 'signal': va = calcSignal(a.euChange, a.usChange).score; vb = calcSignal(b.euChange, b.usChange).score; break;
+                            case 'usChange': va = a.usChange ?? -9999; vb = b.usChange ?? -9999; break;
+                            case 'euChange': va = a.euChange; vb = b.euChange; break;
+                            case 'price': va = a.price; vb = b.price; break;
+                            case 'quantity': va = a.quantity; vb = b.quantity; break;
+                            default: va = 0; vb = 0;
+                        }
+                        return (va - vb) * d;
+                    });
+                    renderTable();
+                }
+            } catch {}
+        }
+    })();
+</script>
+</body>
+</html>
